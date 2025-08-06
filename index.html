@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kfz-Vergleichs-Tool – PDF-Import</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f8f9fa;
+      color: #222;
+      margin: 0;
+    }
+    header {
+      background: #1e73be;
+      color: #fff;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.2rem;
+      letter-spacing: .02em;
+    }
+    main {
+      max-width: 600px;
+      margin: 2rem auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(30, 115, 190, 0.08);
+      padding: 2rem;
+    }
+    section { margin-bottom: 2rem; }
+    label { display: block; margin-bottom: .3rem; font-weight: 500; }
+    input[type="text"], input[type="number"], textarea {
+      width: 100%;
+      padding: .5rem;
+      margin-bottom: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      background: #f4f7fb;
+      transition: background 0.25s;
+    }
+    textarea { resize: vertical; }
+    .btn {
+      background: #1e73be;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: .6rem 1.2rem;
+      margin-bottom: .5rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.13s;
+    }
+    .btn:active { background: #166099; }
+    .hinweis {
+      background: #fffbe2;
+      border: 1px solid #ffdf70;
+      border-radius: 6px;
+      padding: .6rem;
+      margin-bottom: 1rem;
+      color: #a67c00;
+      font-size: 0.98rem;
+    }
+    @media (max-width: 600px) {
+      main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>Kfz-Vergleichs- und Wiederbeschaffungswert-Tool</header>
+  <main>
+    <section>
+      <button class="btn" id="btn-pdf-upload">PDF hochladen</button>
+      <input type="file" id="pdf-upload" accept="application/pdf" style="display:none"/>
+      <div class="hinweis" id="hinweis" style="display:none;">
+        Die Fahrzeugdaten wurden automatisch ausgefüllt.<br>
+        <b>Bitte alle Felder kontrollieren und ggf. anpassen, bevor du fortfährst!</b>
+      </div>
+    </section>
+    <section>
+      <h2>Fahrzeugdaten</h2>
+      <label>Marke/Modell <input id="markeModell" type="text"></label>
+      <label>Variante <input id="variante" type="text"></label>
+      <label>Erstzulassung <input id="erstzulassung" type="text" placeholder="z.B. 25.01.2024"></label>
+      <label>Kilometerstand <input id="kilometer" type="number"></label>
+      <label>PS/kW <input id="pskw" type="text" placeholder="z.B. 105 kW / 143 PS"></label>
+      <label>Kraftstoff <input id="kraftstoff" type="text"></label>
+      <label>Farbe <input id="farbe" type="text"></label>
+      <label>Sonderausstattung <textarea id="sonderausstattung" rows="2"></textarea></label>
+      <label>Neupreis (€) <input id="neupreis" type="text"></label>
+    </section>
+  </main>
+
+  <!-- pdf.js (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // PDF Upload öffnen
+    document.getElementById('btn-pdf-upload').onclick = () => {
+      document.getElementById('pdf-upload').click();
+    };
+
+    // Nach Upload verarbeiten
+    document.getElementById('pdf-upload').onchange = async function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async function() {
+        const typedarray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument({data: typedarray}).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(' ') + '\n';
+        }
+        // Fahrzeugdaten auslesen
+        const parsed = parseFahrzeugdaten(text);
+        // Felder befüllen und hervorheben
+        Object.keys(parsed).forEach(fieldId => {
+          let el = document.getElementById(fieldId);
+          if (el && parsed[fieldId]) {
+            el.value = parsed[fieldId];
+            el.style.background = "#fffbe2";
+          }
+        });
+        document.getElementById('hinweis').style.display = "block";
+      };
+      reader.readAsArrayBuffer(file);
+    };
+
+    // Beispiel-Parser für dein Gutachten-Layout
+    function parseFahrzeugdaten(text) {
+      // Marke/Modell
+      let hersteller = (text.match(/Hersteller\s+([A-Za-z0-9]+)/i) || [])[1] || '';
+      let modell = (text.match(/Modell\s+([^(]+)/i) || [])[1] || '';
+      let variante = (text.match(/Modell\s+[^\(]+\(([^\)]+)\),? ?(.+?),? ?\d{4}/i) || [])[2] || '';
+      // Erstzulassung
+      let ez = (text.match(/Erstzulassung\s+([\d\.]+)/i) || [])[1] || '';
+      // Kilometerstand
+      let km = (text.match(/Laufleistung\s+([\d\.]+)\s?km/i) || [])[1] || '';
+      // PS/kW
+      let leistung = (text.match(/Leistung\s+([\d\.\s\/kWPS]+)/i) || [])[1] || '';
+      // Kraftstoff
+      let kraftstoff = text.includes('Elektro') ? 'Elektro' : '';
+      // Farbe
+      let farbe = (text.match(/Farbe\s+([A-ZÄÖÜ ]+)/i) || [])[1] || '';
+      // Sonderausstattung
+      let sonderausstattung = '';
+      let sonderStart = text.indexOf('Sonderausstattung');
+      if (sonderStart > -1) {
+        let sonderBlock = text.slice(sonderStart, text.length);
+        let sonderEnd = sonderBlock.indexOf('Summe Sonderausstattung');
+        if (sonderEnd > -1) {
+          sonderausstattung = sonderBlock
+            .substring(0, sonderEnd)
+            .replace(/\s{2,}/g, ' ')
+            .replace(/Sonderausstattung/, '')
+            .trim();
+        }
+      }
+      // Neupreis
+      let neupreis = (text.match(/Listenneupreis gesamt.*?([\d\.]+,\d{2})\s*EUR/i) || [])[1] || '';
+
+      return {
+        markeModell: hersteller + (modell ? ' ' + modell : ''),
+        variante: variante,
+        erstzulassung: ez,
+        kilometer: km,
+        pskw: leistung,
+        kraftstoff: kraftstoff,
+        farbe: farbe,
+        sonderausstattung: sonderausstattung,
+        neupreis: neupreis
+      };
+    }
+  </script>
+</body>
+</html>
