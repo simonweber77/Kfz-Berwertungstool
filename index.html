@@ -1,178 +1,975 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kfz-Vergleichs-Tool – PDF-Import</title>
-  <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background: #f8f9fa;
-      color: #222;
-      margin: 0;
-    }
-    header {
-      background: #1e73be;
-      color: #fff;
-      padding: 1rem;
-      text-align: center;
-      font-size: 1.2rem;
-      letter-spacing: .02em;
-    }
-    main {
-      max-width: 600px;
-      margin: 2rem auto;
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(30, 115, 190, 0.08);
-      padding: 2rem;
-    }
-    section { margin-bottom: 2rem; }
-    label { display: block; margin-bottom: .3rem; font-weight: 500; }
-    input[type="text"], input[type="number"], textarea {
-      width: 100%;
-      padding: .5rem;
-      margin-bottom: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 1rem;
-      background: #f4f7fb;
-      transition: background 0.25s;
-    }
-    textarea { resize: vertical; }
-    .btn {
-      background: #1e73be;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: .6rem 1.2rem;
-      margin-bottom: .5rem;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: background 0.13s;
-    }
-    .btn:active { background: #166099; }
-    .hinweis {
-      background: #fffbe2;
-      border: 1px solid #ffdf70;
-      border-radius: 6px;
-      padding: .6rem;
-      margin-bottom: 1rem;
-      color: #a67c00;
-      font-size: 0.98rem;
-    }
-    @media (max-width: 600px) {
-      main { padding: 1rem; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WBW-Marktrecherche</title>
+<!-- Standalone: Bibliotheken per CDN. Für die SV-Toolbox (CSP ohne CDN) müssen pdf-lib, jsPDF und jspdf-autotable eingebettet werden; pdf.js ist dort bereits vorhanden. -->
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  /* ===== Design-Tokens identisch zur RSG-SV-Toolbox (werden dort bei Integration von der Toolbox geliefert) ===== */
+  :root {
+    --rsg-navy: #003781; --rsg-navy-dark: #00224f; --rsg-blue: #003781;
+    --rsg-red: #e2001a; --rsg-red-dark: #b8000f;
+    --rsg-bg: oklch(0.975 0.004 255); --rsg-surface: #ffffff; --rsg-surface-alt: oklch(0.97 0.006 255);
+    --rsg-border: oklch(0.9 0.008 255); --rsg-hairline: oklch(0.925 0.006 255);
+    --rsg-text: #16212e; --rsg-text-muted: #59667a;
+    --rsg-success: #157f3c; --rsg-danger: #c01c1c; --rsg-warning: #a9560a;
+    --rsg-radius-sm: 8px; --rsg-radius: 14px;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --rsg-navy: #7ea8e8; --rsg-navy-dark: #a5c4f2; --rsg-blue: #7ea8e8;
+    --rsg-red: #ff5c6e; --rsg-red-dark: #ff8592;
+    --rsg-success: oklch(0.76 0.15 150); --rsg-danger: oklch(0.72 0.16 22); --rsg-warning: oklch(0.79 0.14 75);
+    --rsg-bg: oklch(0.19 0.012 255); --rsg-surface: oklch(0.235 0.014 255); --rsg-surface-alt: oklch(0.265 0.014 255);
+    --rsg-border: oklch(0.34 0.014 255); --rsg-hairline: oklch(0.32 0.014 255);
+    --rsg-text: oklch(0.94 0.006 255); --rsg-text-muted: oklch(0.7 0.014 255);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Geist', 'Instrument Sans', 'Segoe UI', system-ui, sans-serif; background: var(--rsg-bg); color: var(--rsg-text);
+    -webkit-font-smoothing: antialiased; font-size: 14px; line-height: 1.45; }
+
+  /* ===== Standalone-Kopfzeile (entfällt in der Toolbox) ===== */
+  .wb-top { background: #00224f; color: #fff; position: sticky; top: 0; z-index: 40; border-bottom: 4px solid var(--rsg-red); }
+  :root[data-theme="dark"] .wb-top { background: var(--rsg-surface); }
+  .wb-top-inner { max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .wb-brand { display: flex; align-items: center; gap: 12px; }
+  .wb-mark { width: 34px; height: 34px; border-radius: 9px; background: var(--rsg-red); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; }
+  .wb-brand h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -0.015em; }
+  .wb-brand p { font-size: 12px; margin: 1px 0 0; color: #9fb2c9; }
+  .wb-top-right { display: flex; align-items: center; gap: 14px; }
+  .wb-top-wbw { text-align: right; font-size: 12px; color: #9fb2c9; }
+  .wb-top-wbw b { display: block; color: #fff; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .wb-icon-btn { background: transparent; border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 8px; height: 34px; min-width: 34px; cursor: pointer; font-size: 15px; }
+
+  /* ===== Modul (für Integration unter #wbw-app gekapselt) ===== */
+  #wbw-app { max-width: 1240px; margin: 0 auto; padding: 18px 20px 60px; }
+  #wbw-app .wb-toolbar { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  #wbw-app .wb-card { background: var(--rsg-surface); border: 1px solid var(--rsg-hairline); border-radius: var(--rsg-radius); padding: 22px; margin-bottom: 14px; }
+  #wbw-app .wb-title { font-size: 15px; font-weight: 600; color: var(--rsg-navy); letter-spacing: -0.01em; margin: 0; display: flex; align-items: center; gap: 9px; }
+  #wbw-app .wb-num { display: inline-flex; width: 22px; height: 22px; border-radius: 6px; background: var(--rsg-navy); color: #fff; font-size: 12px; align-items: center; justify-content: center; font-weight: 600; }
+  :root[data-theme="dark"] #wbw-app .wb-num { color: #12233d; }
+  #wbw-app .wb-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  #wbw-app .wb-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  #wbw-app .wb-grid2 > .wb-card { margin-bottom: 0; }
+  #wbw-app .wb-row-gap { margin-bottom: 14px; }
+  #wbw-app .wb-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  #wbw-app .wb-span2 { grid-column: span 2; }
+  #wbw-app .wb-full { grid-column: 1 / -1; }
+  #wbw-app .wb-item label, #wbw-app .wb-lbl { display: block; font-size: 13px; font-weight: 500; color: var(--rsg-text-muted); margin-bottom: 5px; }
+  #wbw-app input, #wbw-app select, #wbw-app textarea {
+    width: 100%; height: 38px; padding: 0 11px; border: 1px solid var(--rsg-border); border-radius: var(--rsg-radius-sm);
+    font-size: 13.5px; font-family: inherit; background: var(--rsg-surface); color: var(--rsg-text); font-variant-numeric: tabular-nums; }
+  #wbw-app textarea { height: auto; padding: 10px 12px; line-height: 1.55; resize: vertical; }
+  #wbw-app input:focus, #wbw-app select:focus, #wbw-app textarea:focus { outline: none; border-color: var(--rsg-blue); box-shadow: 0 0 0 3px color-mix(in oklch, var(--rsg-blue) 16%, transparent); }
+  #wbw-app input[type=checkbox] { width: 16px; height: 16px; padding: 0; accent-color: var(--rsg-navy); cursor: pointer; vertical-align: middle; }
+  #wbw-app .wb-auto { background: color-mix(in oklch, var(--rsg-warning) 12%, var(--rsg-surface)) !important; border-color: color-mix(in oklch, var(--rsg-warning) 45%, transparent) !important; }
+  #wbw-app .wb-invalid { border-color: var(--rsg-danger) !important; background: color-mix(in oklch, var(--rsg-danger) 7%, var(--rsg-surface)) !important; }
+  #wbw-app .wb-hint { font-size: 12.5px; color: var(--rsg-text-muted); margin-top: 8px; line-height: 1.6; }
+  #wbw-app .wb-muted { color: var(--rsg-text-muted); font-size: 11.5px; font-weight: 400; }
+  #wbw-app .wb-btn { height: 40px; padding: 0 16px; border-radius: var(--rsg-radius-sm); font-size: 14px; font-family: inherit; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; transition: background .18s; white-space: nowrap; }
+  #wbw-app .wb-btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+  #wbw-app .wb-btn-primary { background: var(--rsg-navy); color: #fff; font-weight: 600; }
+  #wbw-app .wb-btn-primary:hover { background: var(--rsg-navy-dark); }
+  :root[data-theme="dark"] #wbw-app .wb-btn-primary { color: #12233d; }
+  #wbw-app .wb-btn-red { background: var(--rsg-red); color: #fff; font-weight: 600; }
+  #wbw-app .wb-btn-red:hover { background: var(--rsg-red-dark); }
+  #wbw-app .wb-btn-secondary { background: var(--rsg-surface); color: var(--rsg-text); border-color: var(--rsg-border); font-weight: 500; }
+  #wbw-app .wb-btn-secondary:hover { background: var(--rsg-surface-alt); }
+  #wbw-app .wb-drop { border: 1px dashed var(--rsg-border); border-radius: var(--rsg-radius); padding: 22px 20px; text-align: center; cursor: pointer; background: var(--rsg-surface-alt); margin-bottom: 14px; transition: border-color .18s, background .18s; }
+  #wbw-app .wb-drop:hover { border-color: var(--rsg-blue); }
+  #wbw-app .wb-drop.drag-over { border-color: var(--rsg-blue); background: color-mix(in oklch, var(--rsg-blue) 8%, var(--rsg-surface)); }
+  #wbw-app .wb-drop p { margin: 4px 0 0; color: var(--rsg-text-muted); font-size: 13px; }
+  #wbw-app .wb-drop p:first-child { color: var(--rsg-text); font-size: 14px; margin: 0; }
+  #wbw-app .wb-table-wrap { overflow-x: auto; }
+  #wbw-app table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  #wbw-app th { background: var(--rsg-surface-alt); color: var(--rsg-text-muted); padding: 9px 8px; text-align: left; font-weight: 500; font-size: 12px; border-bottom: 1px solid var(--rsg-border); white-space: nowrap; }
+  #wbw-app td { padding: 7px 6px; border-bottom: 1px solid var(--rsg-hairline); vertical-align: middle; }
+  #wbw-app .wb-list { min-width: 1120px; }
+  #wbw-app td input, #wbw-app td select { min-width: 70px; height: 32px; padding: 0 8px; font-size: 12.5px; border-color: var(--rsg-hairline); border-radius: 6px; }
+  #wbw-app tbody tr:hover td { background: var(--rsg-surface-alt); }
+  #wbw-app tr.wb-excluded td { background: color-mix(in oklch, var(--rsg-danger) 7%, var(--rsg-surface)); }
+  #wbw-app tr.wb-excluded .wb-r { text-decoration: line-through; color: var(--rsg-danger); }
+  #wbw-app tr.wb-incomplete td { background: color-mix(in oklch, var(--rsg-warning) 7%, var(--rsg-surface)); }
+  #wbw-app .wb-r { text-align: right; white-space: nowrap; font-weight: 600; }
+  #wbw-app .wb-c { text-align: center; }
+  #wbw-app .wb-pos { color: var(--rsg-success); } #wbw-app .wb-neg { color: var(--rsg-danger); }
+  #wbw-app .wb-badge { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  #wbw-app .wb-badge-out { background: color-mix(in oklch, var(--rsg-danger) 12%, transparent); color: var(--rsg-danger); }
+  #wbw-app .wb-badge-warn { background: color-mix(in oklch, var(--rsg-warning) 14%, transparent); color: var(--rsg-warning); }
+  #wbw-app .wb-beleg { background: var(--rsg-surface); border: 1px dashed var(--rsg-border); border-radius: 6px; padding: 4px 8px; font-size: 11.5px; color: var(--rsg-text-muted); cursor: pointer; display: inline-block; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+  #wbw-app .wb-beleg:hover { background: var(--rsg-surface-alt); color: var(--rsg-text); }
+  #wbw-app .wb-beleg.has { border-style: solid; border-color: color-mix(in oklch, var(--rsg-success) 45%, transparent); background: color-mix(in oklch, var(--rsg-success) 12%, transparent); color: var(--rsg-success); }
+  #wbw-app .wb-del { background: none; border: none; color: var(--rsg-text-muted); cursor: pointer; font-size: 14px; padding: 4px 7px; border-radius: 6px; }
+  #wbw-app .wb-del:hover { background: color-mix(in oklch, var(--rsg-danger) 12%, transparent); color: var(--rsg-danger); }
+  #wbw-app .wb-sum-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+  #wbw-app .wb-sum { background: var(--rsg-surface-alt); border: 1px solid var(--rsg-hairline); border-radius: var(--rsg-radius-sm); padding: 12px 14px; }
+  #wbw-app .wb-sum-label { font-size: 12.5px; font-weight: 500; color: var(--rsg-text-muted); }
+  #wbw-app .wb-sum-value { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin: 3px 0 1px; font-variant-numeric: tabular-nums; }
+  #wbw-app .wb-sum-sub { font-size: 12px; color: var(--rsg-text-muted); }
+  #wbw-app .wb-summary-box { background: var(--rsg-navy); color: #fff; border-radius: var(--rsg-radius); padding: 18px 22px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  :root[data-theme="dark"] #wbw-app .wb-summary-box { background: var(--rsg-surface-alt); border: 1px solid var(--rsg-border); color: var(--rsg-text); }
+  #wbw-app .wb-summary-box .l { font-size: 13px; opacity: .8; }
+  #wbw-app .wb-summary-box .v { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+  #wbw-app .wb-summary-box .s { font-size: 12.5px; opacity: .75; }
+  #wbw-app .wb-status { font-size: 13px; padding: 10px 14px; border-radius: var(--rsg-radius-sm); line-height: 1.55; border: 1px solid var(--rsg-hairline); background: var(--rsg-surface-alt); color: var(--rsg-text-muted); margin-top: 12px; }
+  #wbw-app .wb-status.warn { background: color-mix(in oklch, var(--rsg-warning) 10%, var(--rsg-surface)); color: var(--rsg-warning); border-color: color-mix(in oklch, var(--rsg-warning) 30%, transparent); }
+  #wbw-app .wb-qs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 2px 18px; }
+  #wbw-app .wb-qs li { font-size: 13px; padding: 4px 0; display: flex; gap: 8px; align-items: flex-start; }
+  #wbw-app .wb-qs .i { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
+  #wbw-app .wb-qs .ok .i { background: color-mix(in oklch, var(--rsg-success) 15%, transparent); color: var(--rsg-success); }
+  #wbw-app .wb-qs .warn .i { background: color-mix(in oklch, var(--rsg-warning) 16%, transparent); color: var(--rsg-warning); }
+  #wbw-app .wb-qs .err .i { background: color-mix(in oklch, var(--rsg-danger) 14%, transparent); color: var(--rsg-danger); }
+  #wbw-app .wb-qs .err { color: var(--rsg-danger); font-weight: 500; }
+  #wbw-app .wb-pill { font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+  #wbw-app .wb-pill.ok { background: color-mix(in oklch, var(--rsg-success) 13%, transparent); color: var(--rsg-success); }
+  #wbw-app .wb-pill.warn { background: color-mix(in oklch, var(--rsg-warning) 15%, transparent); color: var(--rsg-warning); }
+  #wbw-app .wb-pill.err { background: color-mix(in oklch, var(--rsg-danger) 13%, transparent); color: var(--rsg-danger); }
+  #wbw-app details.wb-more > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--rsg-navy); margin-top: 12px; }
+  #wbw-app .wb-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #wbw-app .hidden { display: none !important; }
+  @media (max-width: 980px) { #wbw-app .wb-grid2 { grid-template-columns: 1fr; } }
+  @media (max-width: 600px) { #wbw-app { padding: 12px 12px 40px; } #wbw-app .wb-span2 { grid-column: 1 / -1; } #wbw-app .wb-card { padding: 16px; } }
+</style>
 </head>
 <body>
-  <header>Kfz-Vergleichs- und Wiederbeschaffungswert-Tool</header>
-  <main>
-    <section>
-      <button class="btn" id="btn-pdf-upload">PDF hochladen</button>
-      <input type="file" id="pdf-upload" accept="application/pdf" style="display:none"/>
-      <div class="hinweis" id="hinweis" style="display:none;">
-        Die Fahrzeugdaten wurden automatisch ausgefüllt.<br>
-        <b>Bitte alle Felder kontrollieren und ggf. anpassen, bevor du fortfährst!</b>
+
+<div class="wb-top">
+  <div class="wb-top-inner">
+    <div class="wb-brand">
+      <div class="wb-mark">SV</div>
+      <div><h1>WBW-Marktrecherche &amp; Sammel-PDF</h1><p>Totalschaden · Leitfaden für die Gutachtenerstellung I/2026, Kap. 4 Pkt. 1</p></div>
+    </div>
+    <div class="wb-top-right">
+      <div class="wb-top-wbw">WBW gerundet<b id="wb-head-wbw">–</b></div>
+      <button class="wb-icon-btn" onclick="WBW.toggleTheme()" title="Hell / Dunkel">◐</button>
+    </div>
+  </div>
+</div>
+
+<section id="wbw-app">
+
+  <div class="wb-toolbar">
+    <button class="wb-btn wb-btn-secondary wb-btn-sm" onclick="WBW.loadDemo()">Demo-Daten</button>
+    <label class="wb-btn wb-btn-secondary wb-btn-sm">Fall laden<input type="file" accept=".json,application/json" class="hidden" onchange="WBW.loadCase(this)"></label>
+    <button class="wb-btn wb-btn-secondary wb-btn-sm" onclick="WBW.saveCase()" title="Kompletter Fall inkl. aller PDFs als Datei">Fall speichern</button>
+    <button class="wb-btn wb-btn-primary wb-btn-sm" onclick="WBW.newCase()">Neuer Fall</button>
+  </div>
+
+  <!-- Prüfliste -->
+  <div class="wb-card">
+    <div class="wb-head"><h2 class="wb-title">Prüfliste</h2><span id="wb-qs-sum" class="wb-pill warn">–</span></div>
+    <ul class="wb-qs" id="wb-qs"></ul>
+  </div>
+
+  <div class="wb-grid2 wb-row-gap">
+    <!-- 1 Fall & Bewertungsfahrzeug -->
+    <div class="wb-card">
+      <div class="wb-head">
+        <h2 class="wb-title"><span class="wb-num">1</span> Fall &amp; Bewertungsfahrzeug</h2>
+        <label class="wb-btn wb-btn-secondary wb-btn-sm" title="Fahrzeugdaten aus DAT-/weDAT-Ausdruck übernehmen">DAT-PDF einlesen
+          <input type="file" accept="application/pdf" class="hidden" onchange="WBW.importDat(this)"></label>
       </div>
-    </section>
-    <section>
-      <h2>Fahrzeugdaten</h2>
-      <label>Marke/Modell <input id="markeModell" type="text"></label>
-      <label>Variante <input id="variante" type="text"></label>
-      <label>Erstzulassung <input id="erstzulassung" type="text" placeholder="z.B. 25.01.2024"></label>
-      <label>Kilometerstand <input id="kilometer" type="number"></label>
-      <label>PS/kW <input id="pskw" type="text" placeholder="z.B. 105 kW / 143 PS"></label>
-      <label>Kraftstoff <input id="kraftstoff" type="text"></label>
-      <label>Farbe <input id="farbe" type="text"></label>
-      <label>Sonderausstattung <textarea id="sonderausstattung" rows="2"></textarea></label>
-      <label>Neupreis (€) <input id="neupreis" type="text"></label>
-    </section>
-  </main>
+      <div class="wb-info-grid">
+        <div class="wb-item"><label>Schadennummer</label><input id="wb-claim" placeholder="z. B. 2026-104928"></div>
+        <div class="wb-item"><label>Kennzeichen</label><input id="wb-plate" placeholder="W-12345X"></div>
+        <div class="wb-item wb-full"><label>Marke / Modell / Ausführung</label><input id="wb-model" placeholder="BMW 320d Touring xDrive Aut."></div>
+        <div class="wb-item"><label>Erstzulassung (MM/JJJJ)</label><input id="wb-ez" placeholder="06/2021" onblur="WBW.normEz(this)"></div>
+        <div class="wb-item"><label>Kilometerstand</label><input id="wb-km" type="number" min="0" step="1" placeholder="88500"></div>
+        <div class="wb-item"><label>Schadensdatum (Bewertungsstichtag)</label><input id="wb-date" type="date"></div>
+        <div class="wb-item"><label>APS-Treffer</label>
+          <select id="wb-aps-count">
+            <option value="0">0 Fahrzeuge</option><option value="1">1 Fahrzeug</option><option value="2">2 Fahrzeuge</option>
+            <option value="3">3 Fahrzeuge</option><option value="4">4 oder mehr</option>
+          </select></div>
+      </div>
+      <details class="wb-more" id="wb-more">
+        <summary>Weitere Angaben – FIN, Leistung, APS-Wert, Recherche</summary>
+        <div class="wb-info-grid" style="margin-top:12px;">
+          <div class="wb-item wb-span2"><label>Fahrgestellnummer (FIN)</label><input id="wb-vin" maxlength="17" style="text-transform:uppercase" placeholder="17 Zeichen"></div>
+          <div class="wb-item wb-span2"><label>Leistung / Kraftstoff / Getriebe</label><input id="wb-power" placeholder="140 kW / Diesel / Automatik"></div>
+          <div class="wb-item"><label>Listenneupreis (€)</label><input id="wb-newprice" type="number" step="1"></div>
+          <div class="wb-item"><label>APS-Wert (€)</label><input id="wb-aps-val" type="number" step="10" placeholder="optional"></div>
+          <div class="wb-item wb-span2"><label>APS-Auszug als PDF (wird vorangestellt)</label><div id="wb-aps-slot" class="wb-inline" style="min-height:38px;"></div></div>
+          <div class="wb-item"><label>Recherchedatum</label><input id="wb-resdate" type="date"></div>
+          <div class="wb-item"><label>Bearbeiter / SV</label><input id="wb-sv" placeholder="Name" onchange="WBW.saveSettings()"></div>
+          <div class="wb-item wb-full"><label>Suchkriterien der Marktrecherche</label><input id="wb-criteria" placeholder="z. B. gleiches Modell/Motor, EZ ±12 Monate, km ±30.000, Österreich"></div>
+        </div>
+      </details>
+    </div>
 
-  <!-- pdf.js (CDN) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>
-    // PDF Upload öffnen
-    document.getElementById('btn-pdf-upload').onclick = () => {
-      document.getElementById('pdf-upload').click();
-    };
+    <!-- 2 Parameter -->
+    <div class="wb-card">
+      <div class="wb-head">
+        <h2 class="wb-title"><span class="wb-num">2</span> Parameter</h2>
+        <div class="wb-inline">
+          <button class="wb-btn wb-btn-secondary wb-btn-sm" onclick="WBW.resetParams()" title="Methodik der SV-Toolbox (Freitag, SV 3/2014)">Standard</button>
+          <button class="wb-btn wb-btn-secondary wb-btn-sm" onclick="WBW.saveSettings(true)" title="Als eigene Standardwerte in diesem Browser speichern">Merken</button>
+        </div>
+      </div>
+      <div class="wb-info-grid">
+        <div class="wb-item"><label>Wunschpreisabzug %</label><input id="wb-p-wpf" type="number" step="0.5" value="5"></div>
+        <div class="wb-item"><label>Rundung WBW</label>
+          <select id="wb-p-round"><option value="10">auf 10 € (Leitfaden Kap. 3 Pkt. 29a)</option><option value="100">auf 100 €</option></select></div>
+        <div class="wb-item"><label>Gewichtung APS-Wert %</label><input id="wb-p-apsw" type="number" min="0" max="100" step="5" value="0"></div>
+        <div class="wb-item wb-span2" id="wb-wr-wrap"><label>Begründung Gewichtung (Pflicht bei &gt; 0 %)</label><input id="wb-p-wreason" placeholder="z. B. liquider Markt, APS-Datenbasis tragfähig"></div>
+      </div>
+      <details class="wb-more">
+        <summary>Korrektursätze</summary>
+        <div class="wb-info-grid" style="margin-top:12px;">
+          <div class="wb-item"><label>Privataufschlag %</label><input id="wb-p-priv" type="number" step="1" value="10"></div>
+          <div class="wb-item"><label>Alter % je Monat</label><input id="wb-p-month" type="number" step="0.05" value="0.5"></div>
+          <div class="wb-item"><label>Alter Deckel ± %</label><input id="wb-p-agecap" type="number" step="1" value="10"></div>
+          <div class="wb-item"><label>km: Bew.-Fzg. mehr km, % / 1.000</label><input id="wb-p-kmmore" type="number" step="0.05" value="0.4"></div>
+          <div class="wb-item"><label>… bei &gt; 100 % Abweichung</label><input id="wb-p-kmmorehi" type="number" step="0.05" value="0.65"></div>
+          <div class="wb-item"><label>km: Bew.-Fzg. weniger km, % / 1.000</label><input id="wb-p-kmless" type="number" step="0.05" value="0.2"></div>
+          <div class="wb-item"><label>Ausreißer-Grenze ± %</label><input id="wb-p-out" type="number" step="1" value="20"></div>
+        </div>
+      </details>
+      <div class="wb-hint">
+        Δ = Bewertungsfahrzeug − Vergleichsfahrzeug. Bewertungsfahrzeug jünger bzw. weniger km → Zuschlag; älter bzw. mehr km → Abschlag.
+        Gleiche Methodik wie Marktanalyse der SV-Toolbox. Eine Gewichtung von APS und Markt ist im Einzelfall zu begründen.
+      </div>
+    </div>
+  </div>
 
-    // Nach Upload verarbeiten
-    document.getElementById('pdf-upload').onchange = async function (e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async function() {
-        const typedarray = new Uint8Array(this.result);
-        const pdf = await pdfjsLib.getDocument({data: typedarray}).promise;
-        let text = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          text += content.items.map(item => item.str).join(' ') + '\n';
-        }
-        // Fahrzeugdaten auslesen
-        const parsed = parseFahrzeugdaten(text);
-        // Felder befüllen und hervorheben
-        Object.keys(parsed).forEach(fieldId => {
-          let el = document.getElementById(fieldId);
-          if (el && parsed[fieldId]) {
-            el.value = parsed[fieldId];
-            el.style.background = "#fffbe2";
-          }
-        });
-        document.getElementById('hinweis').style.display = "block";
-      };
-      reader.readAsArrayBuffer(file);
-    };
+  <!-- 3 Vergleichsfahrzeuge -->
+  <div class="wb-card">
+    <div class="wb-head">
+      <h2 class="wb-title"><span class="wb-num">3</span> Vergleichsfahrzeuge</h2>
+      <div class="wb-inline">
+        <button class="wb-btn wb-btn-secondary wb-btn-sm" onclick="WBW.addListing()">+ Fahrzeug manuell</button>
+        <button class="wb-btn wb-btn-secondary wb-btn-sm" onclick="WBW.clearListings()">Liste leeren</button>
+      </div>
+    </div>
+    <div class="wb-drop" id="wb-drop" onclick="document.getElementById('wb-file').click()">
+      <input type="file" id="wb-file" multiple accept="application/pdf" class="hidden" onchange="WBW.handlePdfs(this.files); this.value='';">
+      <p><strong>Inserat-PDFs hier ablegen</strong> oder klicken</p>
+      <p>Je PDF eine Zeile. Preis, EZ und km werden vorbefüllt und <span class="wb-badge wb-badge-warn">gelb</span> markiert – bitte prüfen. Nicht erkannte Werte bleiben leer; die Zeile zählt erst, wenn sie vollständig ist.</p>
+    </div>
+    <div class="wb-table-wrap">
+      <table class="wb-list">
+        <thead><tr>
+          <th>#</th><th style="min-width:130px;">Quelle / Anbieter</th><th style="min-width:180px;">Bezeichnung / Notiz</th>
+          <th style="min-width:100px;">EZ</th><th style="min-width:104px;">km</th><th style="min-width:110px;">Inseratspreis €</th>
+          <th style="width:92px;" title="+ wenn Bewertungsfahrzeug besser ausgestattet, − wenn Inserat besser">Ausst. ± €</th>
+          <th class="wb-r">Alter</th><th class="wb-r">km</th><th class="wb-r">Angepasst</th>
+          <th class="wb-c" title="In Mittelwert einbeziehen">Einb.</th><th>Beleg</th><th></th>
+        </tr></thead>
+        <tbody id="wb-body"></tbody>
+      </table>
+    </div>
+    <div id="wb-empty" class="wb-hint">Noch keine Vergleichsfahrzeuge erfasst.</div>
+  </div>
 
-    // Beispiel-Parser für dein Gutachten-Layout
-    function parseFahrzeugdaten(text) {
-      // Marke/Modell
-      let hersteller = (text.match(/Hersteller\s+([A-Za-z0-9]+)/i) || [])[1] || '';
-      let modell = (text.match(/Modell\s+([^(]+)/i) || [])[1] || '';
-      let variante = (text.match(/Modell\s+[^\(]+\(([^\)]+)\),? ?(.+?),? ?\d{4}/i) || [])[2] || '';
-      // Erstzulassung
-      let ez = (text.match(/Erstzulassung\s+([\d\.]+)/i) || [])[1] || '';
-      // Kilometerstand
-      let km = (text.match(/Laufleistung\s+([\d\.]+)\s?km/i) || [])[1] || '';
-      // PS/kW
-      let leistung = (text.match(/Leistung\s+([\d\.\s\/kWPS]+)/i) || [])[1] || '';
-      // Kraftstoff
-      let kraftstoff = text.includes('Elektro') ? 'Elektro' : '';
-      // Farbe
-      let farbe = (text.match(/Farbe\s+([A-ZÄÖÜ ]+)/i) || [])[1] || '';
-      // Sonderausstattung
-      let sonderausstattung = '';
-      let sonderStart = text.indexOf('Sonderausstattung');
-      if (sonderStart > -1) {
-        let sonderBlock = text.slice(sonderStart, text.length);
-        let sonderEnd = sonderBlock.indexOf('Summe Sonderausstattung');
-        if (sonderEnd > -1) {
-          sonderausstattung = sonderBlock
-            .substring(0, sonderEnd)
-            .replace(/\s{2,}/g, ' ')
-            .replace(/Sonderausstattung/, '')
-            .trim();
-        }
-      }
-      // Neupreis
-      let neupreis = (text.match(/Listenneupreis gesamt.*?([\d\.]+,\d{2})\s*EUR/i) || [])[1] || '';
+  <div class="wb-grid2 wb-row-gap">
+    <!-- 4 Vorschäden -->
+    <div class="wb-card">
+      <div class="wb-head">
+        <h2 class="wb-title"><span class="wb-num">4</span> Vorschäden / objektiver Minderwert</h2>
+        <button class="wb-btn wb-btn-secondary wb-btn-sm" onclick="WBW.addDamage()">+ Position</button>
+      </div>
+      <label class="wb-inline" style="font-size:13.5px; margin-bottom:10px; cursor:pointer;"><input type="checkbox" id="wb-nodamage"> Keine bewertungsrelevanten Vorschäden erkennbar</label>
+      <table><tbody id="wb-dmg"></tbody></table>
+      <div class="wb-info-grid" style="margin-top:12px;">
+        <div class="wb-item"><label>Sonstige Korrektur (€, ±)</label><input id="wb-other" type="number" step="10" value="0"></div>
+        <div class="wb-item wb-span2"><label>Begründung</label><input id="wb-other-reason" placeholder="z. B. belegte Sonderausstattung"></div>
+      </div>
+      <div class="wb-hint">Einzeln und verhältnismäßig ansetzen (Leitfaden Kap. 3 Pkt. 27). Keine Vorschäden → Haken setzen, wird so vermerkt.</div>
+    </div>
 
-      return {
-        markeModell: hersteller + (modell ? ' ' + modell : ''),
-        variante: variante,
-        erstzulassung: ez,
-        kilometer: km,
-        pskw: leistung,
-        kraftstoff: kraftstoff,
-        farbe: farbe,
-        sonderausstattung: sonderausstattung,
-        neupreis: neupreis
-      };
+    <!-- 5 Ergebnis -->
+    <div class="wb-card">
+      <div class="wb-head"><h2 class="wb-title"><span class="wb-num">5</span> Ergebnis</h2></div>
+      <div class="wb-sum-grid">
+        <div class="wb-sum"><div class="wb-sum-label">Ø Inseratspreis</div><div class="wb-sum-value" id="wb-r-raw">–</div><div class="wb-sum-sub" id="wb-r-raw-s">unkorrigiert</div></div>
+        <div class="wb-sum"><div class="wb-sum-label">Marktmittelwert</div><div class="wb-sum-value" id="wb-r-mkt">–</div><div class="wb-sum-sub" id="wb-r-mkt-s">–</div></div>
+        <div class="wb-sum"><div class="wb-sum-label">Abzüge / Korrektur</div><div class="wb-sum-value" id="wb-r-adj">–</div><div class="wb-sum-sub" id="wb-r-adj-s">–</div></div>
+      </div>
+      <div class="wb-summary-box">
+        <div><div class="l">Wiederbeschaffungswert (Händlerverkaufswert)</div><div class="v" id="wb-r-wbw">–</div><div class="s" id="wb-r-wbw-s">–</div></div>
+      </div>
+      <div class="wb-status" id="wb-aps-cmp">–</div>
+    </div>
+  </div>
+
+  <!-- 6 Begründung & Export -->
+  <div class="wb-card">
+    <div class="wb-head">
+      <h2 class="wb-title"><span class="wb-num">6</span> Begründung &amp; Export</h2>
+      <div class="wb-inline">
+        <button class="wb-btn wb-btn-secondary wb-btn-sm" onclick="WBW.copyNote()">Text kopieren</button>
+        <button class="wb-btn wb-btn-secondary" onclick="WBW.exportPdf(false)">Nur Deckblatt</button>
+        <button class="wb-btn wb-btn-red" onclick="WBW.exportPdf(true)">Sammel-PDF erstellen</button>
+      </div>
+    </div>
+    <div class="wb-inline" style="justify-content:space-between; margin-bottom:6px;">
+      <span class="wb-muted" id="wb-note-state">automatisch erzeugt</span>
+      <button class="wb-btn wb-btn-secondary wb-btn-sm hidden" id="wb-note-regen" onclick="WBW.regenNote()">Text neu erzeugen</button>
+    </div>
+    <textarea id="wb-note" rows="7"></textarea>
+    <div class="wb-hint">Sammel-PDF = Deckblatt + APS-Auszug + alle Inserat-PDFs. Jede Beleg-Seite erhält einen Kopfstreifen mit Beilagen-Nr. und Rechenwerten; der Originalinhalt (URL, Druckdatum) bleibt sichtbar. Für weDAT® → Zusatzdokumente.</div>
+  </div>
+
+</section>
+
+<script>
+(function () {
+'use strict';
+if (window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/* ======================= Zustand ======================= */
+let listings = [], damages = [], apsPdf = null, nextId = 1, noteEdited = false;
+
+const CASE_FIELDS = ['wb-claim','wb-plate','wb-model','wb-ez','wb-km','wb-date','wb-aps-count','wb-vin','wb-power','wb-newprice','wb-aps-val','wb-resdate','wb-sv','wb-criteria','wb-other','wb-other-reason'];
+const PARAM_DEFAULTS = { 'wb-p-wpf': 5, 'wb-p-round': '10', 'wb-p-apsw': 0, 'wb-p-priv': 10, 'wb-p-month': 0.5, 'wb-p-agecap': 10, 'wb-p-kmmore': 0.4, 'wb-p-kmmorehi': 0.65, 'wb-p-kmless': 0.2, 'wb-p-out': 20 };
+const PARAM_FIELDS = Object.keys(PARAM_DEFAULTS).concat('wb-p-wreason');
+const SOURCES = ['willhaben.at', 'AutoScout24.at', 'gebrauchtwagen.at', 'DasWeltAuto.at', 'car4you.at', 'Händler-Website', 'Sonstige'];
+
+const $ = id => document.getElementById(id);
+const val = id => $(id).value.trim();
+const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
+
+/* ======================= Format ======================= */
+function numDE(n, d = 0) {
+  const neg = n < 0, p = Math.abs(n).toFixed(d).split('.');
+  return (neg ? '−' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (p[1] !== undefined ? ',' + p[1] : '');
+}
+const eur = n => (n === null || n === undefined || !isFinite(n)) ? '–' : numDE(Math.round(n)) + ' €';
+const eurS = n => { if (!isFinite(n)) return '–'; const r = Math.round(n); return (r > 0 ? '+' : '') + numDE(r) + ' €'; };
+const kmF = n => (n === null || !isFinite(n)) ? '–' : numDE(n) + ' km';
+const pct = n => numDE(n, n % 1 ? (Math.round(n * 100) % 10 ? 2 : 1) : 0);
+function dateDE(iso) { if (!iso) return '–'; const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; }
+function todayIso() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+// PDF-Standardschriften (WinAnsi): nicht darstellbare Zeichen ersetzen – sonst bricht pdf-lib ab bzw. jsPDF druckt Müll
+function pdfSafe(s) {
+  return String(s ?? '').replace(/[→➔]/g, '->').replace(/−/g, '-').replace(/[  ]/g, ' ').replace(/[≤]/g, '<=').replace(/[≥]/g, '>=').replace(/Δ/g, 'D')
+    .replace(/[^\n\x20-\x7E\xA0-\xFF€–—„“”‚‘’…•]/g, '?');
+}
+
+/* EZ: 06/2021, 6.2021, 2021-06, 15.06.2021 → {y, m, total, iso:"2021-06"} */
+function parseEz(str) {
+  const s = String(str || '').trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})$/))) return mkEz(+m[1], +m[2]);
+  if ((m = s.match(/^\d{1,2}[.\/-](\d{1,2})[.\/-](\d{4})$/))) return mkEz(+m[2], +m[1]);
+  if ((m = s.match(/^(\d{1,2})[.\/-](\d{4})$/))) return mkEz(+m[2], +m[1]);
+  return null;
+}
+function mkEz(y, mo) { return (mo >= 1 && mo <= 12 && y >= 1950 && y <= 2100) ? { y, m: mo, total: y * 12 + mo, iso: `${y}-${String(mo).padStart(2, '0')}` } : null; }
+function ezDE(iso) { const e = parseEz(iso); return e ? `${String(e.m).padStart(2, '0')}/${e.y}` : (iso || ''); }
+function normEz(el) {
+  const e = parseEz(el.value);
+  el.classList.toggle('wb-invalid', !!el.value.trim() && !e);
+  if (e) el.value = ezDE(e.iso);
+  recalc();
+}
+
+/* ======================= Rechenkern (rein, ohne DOM) =======================
+ * Identisch zu berechneFahrzeugBasis() der SV-Toolbox (Freitag, SV 3/2014):
+ * Δ = Bewertungsfahrzeug − Vergleichsfahrzeug; Bankers' Rounding für Zwischenwerte.
+ * Ergänzt um: Ausstattungsdifferenz je Inserat, APS-Gewichtung, Rundung 10/100 €. */
+function roundKfm(x) {
+  const f = Math.floor(x);
+  if (Math.abs(x - f - 0.5) < 1e-9) return f % 2 === 0 ? f : f + 1;
+  return x >= 0 ? Math.round(x) : -Math.round(-x);
+}
+function calcListing(subj, it, P) {
+  const e = parseEz(it.ez);
+  const r = { complete: !!subj && !!e && it.km !== null && isFinite(it.km) && it.price > 0 };
+  if (!r.complete) return r;
+  r.wpf = it.applyWpf ? -it.price * P.wpf / 100 : 0;
+  const nachWp = it.price + r.wpf;
+  r.priv = it.seller === 'privat' ? nachWp * P.priv / 100 : 0;
+  r.basis = nachWp + r.priv;
+  r.dM = subj.ez.total - e.total;
+  const ageRaw = roundKfm(r.dM * P.month / 100 * r.basis), cap = roundKfm(P.ageCap / 100 * r.basis);
+  r.ageCapped = P.ageCap > 0 && (ageRaw > cap || ageRaw < -cap);
+  r.age = r.ageCapped ? Math.min(Math.max(ageRaw, -cap), cap) : ageRaw;
+  r.dKm = subj.km - it.km;
+  r.kmAbw = subj.km > 0 ? Math.abs(r.dKm) / subj.km * 100 : 0;
+  if (r.dKm > 0) { r.kmRate = r.kmAbw <= 100 ? P.kmMore : P.kmMoreHi; r.km = -roundKfm(r.dKm / 1000 * r.kmRate / 100 * r.basis); }
+  else if (r.dKm < 0) { r.kmRate = P.kmLess; r.km = roundKfm(-r.dKm / 1000 * r.kmRate / 100 * r.basis); }
+  else { r.kmRate = 0; r.km = 0; }
+  r.equip = it.equipDiff || 0;
+  r.adapted = roundKfm(r.basis + r.age + r.km) + r.equip;
+  return r;
+}
+function calculate() {
+  const P = {
+    wpf: num('wb-p-wpf'), priv: num('wb-p-priv'), month: num('wb-p-month'), ageCap: num('wb-p-agecap'),
+    kmMore: num('wb-p-kmmore'), kmMoreHi: num('wb-p-kmmorehi'), kmLess: num('wb-p-kmless'), out: num('wb-p-out'),
+    apsW: Math.min(Math.max(num('wb-p-apsw'), 0), 100), round: parseInt($('wb-p-round').value, 10) || 10
+  };
+  const ez = parseEz(val('wb-ez')), kmRaw = $('wb-km').value.trim();
+  const subj = (ez && kmRaw !== '' && isFinite(+kmRaw)) ? { ez, km: +kmRaw } : null;
+
+  listings.forEach(it => { it._r = calcListing(subj, it, P); });
+  const complete = listings.filter(x => x._r.complete);
+  const incl = complete.filter(x => x.use);
+  // Ausreißer-Hinweis (Kriterium B der Toolbox): ±Grenze um den vorläufigen Mittelwert der einbezogenen Fahrzeuge
+  const vorl = incl.length ? incl.reduce((s, x) => s + x._r.adapted, 0) / incl.length : null;
+  complete.forEach(x => {
+    x._r.dev = (vorl && incl.length >= 3) ? (x._r.adapted / vorl - 1) * 100 : null;
+    x._r.outlier = x._r.dev !== null && Math.abs(x._r.dev) > P.out;
+    x._r.kmHint = x._r.kmAbw > 100;
+  });
+  const n = incl.length;
+  const rawAvg = n ? incl.reduce((s, x) => s + x.price, 0) / n : null;
+  const market = n ? roundKfm(incl.reduce((s, x) => s + x._r.adapted, 0) / n) : null;
+  const aps = num('wb-aps-val');
+  let base = null, mode = 'none';
+  if (n && aps > 0 && P.apsW > 0) { base = aps * P.apsW / 100 + market * (1 - P.apsW / 100); mode = 'weighted'; }
+  else if (n) { base = market; mode = 'market'; }
+  else if (aps > 0) { base = aps; mode = 'aps'; }
+  const dmgSum = damages.reduce((s, d) => s + (d.amount || 0), 0);
+  const other = num('wb-other');
+  const exact = base === null ? null : base - dmgSum + other;
+  const rounded = exact === null ? null : roundKfm(exact / P.round) * P.round;
+  return { P, subj, complete, incl, n, rawAvg, market, aps, base, mode, dmgSum, other, exact, rounded,
+    apsDev: (aps > 0 && market) ? (market / aps - 1) * 100 : null };
+}
+
+/* ======================= Vergleichsfahrzeuge (UI) ======================= */
+function addListing(d = {}) {
+  listings.push({
+    id: nextId++, source: d.source || 'willhaben.at', seller: d.seller || 'haendler', title: d.title || '', url: d.url || '',
+    ez: d.ez || '', km: d.km ?? null, price: d.price ?? null, applyWpf: d.applyWpf !== undefined ? d.applyWpf : true,
+    equipDiff: d.equipDiff || 0, use: d.use !== undefined ? d.use : true, auto: d.auto || {},
+    pdfBytes: d.pdfBytes || null, pdfName: d.pdfName || ''
+  });
+  renderTable(); recalc();
+}
+function removeListing(id) { listings = listings.filter(x => x.id !== id); renderTable(); recalc(); }
+function clearListings() { if (listings.length && !confirm('Alle Vergleichsfahrzeuge entfernen?')) return; listings = []; renderTable(); recalc(); }
+function setField(id, f, v, el) {
+  const it = listings.find(x => x.id === id); if (!it) return;
+  if (f === 'km' || f === 'price' || f === 'equipDiff') { const x = parseFloat(v); it[f] = isFinite(x) ? x : (f === 'equipDiff' ? 0 : null); }
+  else if (f === 'ez') { const e = parseEz(v); it.ez = e ? e.iso : String(v).trim(); if (el) { el.classList.toggle('wb-invalid', !!String(v).trim() && !e); if (e) el.value = ezDE(e.iso); } }
+  else it[f] = v;
+  if (it.auto[f]) { it.auto[f] = false; if (el) el.classList.remove('wb-auto'); }
+  recalc();
+}
+function renderTable() {
+  const tb = $('wb-body'); tb.innerHTML = '';
+  $('wb-empty').classList.toggle('hidden', listings.length > 0);
+  listings.forEach((it, i) => {
+    const a = it.auto || {}, A = k => a[k] ? 'wb-auto' : '';
+    const opts = [...new Set([...SOURCES, it.source])].map(s => `<option ${s === it.source ? 'selected' : ''}>${esc(s)}</option>`).join('');
+    const tr = document.createElement('tr'); tr.id = 'wb-row-' + it.id;
+    tr.innerHTML = `
+      <td style="font-weight:600; color:var(--rsg-navy);">${i + 1}</td>
+      <td><select class="${A('source')}" onchange="WBW._set(${it.id},'source',this.value,this)">${opts}</select>
+          <select style="margin-top:4px;" onchange="WBW._set(${it.id},'seller',this.value,this)">
+            <option value="haendler" ${it.seller === 'haendler' ? 'selected' : ''}>Händler</option>
+            <option value="privat" ${it.seller === 'privat' ? 'selected' : ''}>Privat</option></select></td>
+      <td><input value="${esc(it.title)}" placeholder="Modell / Ausstattung / Ort" oninput="WBW._set(${it.id},'title',this.value)">
+          <label class="wb-muted" style="display:flex; gap:5px; align-items:center; margin-top:4px; cursor:pointer;"><input type="checkbox" ${it.applyWpf ? 'checked' : ''} onchange="WBW._set(${it.id},'applyWpf',this.checked)"> Wunschpreisabzug
+          ${it.url ? `· <span title="${esc(it.url)}" style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom;">${esc(it.url)}</span>` : ''}</label></td>
+      <td><input class="${A('ez')}" value="${esc(ezDE(it.ez))}" placeholder="MM/JJJJ" onblur="WBW._set(${it.id},'ez',this.value,this)"></td>
+      <td><input class="${A('km')}" type="number" step="1" value="${it.km ?? ''}" oninput="WBW._set(${it.id},'km',this.value,this)"></td>
+      <td><input class="${A('price')}" type="number" step="10" value="${it.price ?? ''}" oninput="WBW._set(${it.id},'price',this.value,this)"></td>
+      <td><input type="number" step="50" value="${it.equipDiff}" oninput="WBW._set(${it.id},'equipDiff',this.value)"></td>
+      <td class="wb-r" id="wb-ca-${it.id}"></td><td class="wb-r" id="wb-ck-${it.id}"></td><td class="wb-r" id="wb-ct-${it.id}" style="color:var(--rsg-navy);"></td>
+      <td class="wb-c"><input type="checkbox" ${it.use ? 'checked' : ''} title="Abwählen = dokumentiert, aber nicht im Mittelwert" onchange="WBW._set(${it.id},'use',this.checked)"></td>
+      <td><label class="wb-beleg ${it.pdfName ? 'has' : ''}" title="${esc(it.pdfName || 'PDF zuordnen')}">${it.pdfName ? '✓ ' + esc(it.pdfName) : '+ PDF'}<input type="file" accept="application/pdf" class="hidden" onchange="WBW._attach(${it.id},this)"></label></td>
+      <td><button class="wb-del" title="Zeile löschen" onclick="WBW._remove(${it.id})">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+async function attachPdf(id, input) {
+  const f = input.files && input.files[0]; if (!f) return;
+  const it = listings.find(x => x.id === id); if (!it) return;
+  it.pdfBytes = await f.arrayBuffer(); it.pdfName = f.name;
+  renderTable(); recalc();
+}
+
+/* ======================= PDF lesen ======================= */
+async function pdfText(buf, maxPages = 3) {
+  if (!window.pdfjsLib) return '';
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)), isEvalSupported: false }).promise;
+  let t = '';
+  for (let i = 1; i <= Math.min(pdf.numPages, maxPages); i++) {
+    const c = await (await pdf.getPage(i)).getTextContent();
+    t += ' ' + c.items.map(x => x.str).join(' ') + '\n';
+  }
+  return t.replace(/[   ]/g, ' ');
+}
+function detectPlatform(s) {
+  const n = (s || '').toLowerCase();
+  if (n.includes('willhaben')) return 'willhaben.at';
+  if (n.includes('autoscout')) return 'AutoScout24.at';
+  if (n.includes('gebrauchtwagen.at')) return 'gebrauchtwagen.at';
+  if (n.includes('weltauto')) return 'DasWeltAuto.at';
+  if (n.includes('car4you')) return 'car4you.at';
+  return null;
+}
+const toInt = s => parseInt(String(s).replace(/[.\s']/g, ''), 10);
+function extractListing(text) {
+  const r = { source: detectPlatform(text), price: null, km: null, ez: null, url: null };
+  const u = text.match(/https?:\/\/[^\s"<>]+/i); if (u) r.url = u[0].slice(0, 200);
+  const NUM = '(\\d{1,3}(?:[.\\s\']\\d{3})+|\\d{4,6})(?:,(?:-|\\d{2}))?';
+  // Preis: beschriftet, sonst häufigster €-Betrag (ohne Raten/Neupreis/Leasing)
+  let m = text.match(new RegExp('(?:Kaufpreis|Verkaufspreis|Barpreis|(?<![a-zäöü])Preis)\\s*:?\\s*(?:€|EUR)?\\s*' + NUM, 'i'));
+  if (m) { const v = toInt(m[1]); if (v >= 500 && v <= 1000000) r.price = v; }
+  if (!r.price) {
+    const re = new RegExp('(?:(?:€|EUR)\\s*' + NUM + ')|(?:' + NUM + '\\s*(?:€|EUR))', 'gi');
+    const cnt = new Map(); let first = null, mm;
+    while ((mm = re.exec(text))) {
+      const after = text.slice(re.lastIndex, re.lastIndex + 18).toLowerCase(), before = text.slice(Math.max(0, mm.index - 25), mm.index).toLowerCase();
+      if (/mtl|monat|\/\s*m|rate|anzahlung/.test(after) || /rate|anzahlung|neupreis|leasing|finanz/.test(before)) continue;
+      const v = toInt(mm[1] || mm[2]); if (v < 500 || v > 1000000) continue;
+      if (first === null) first = v; cnt.set(v, (cnt.get(v) || 0) + 1);
     }
-  </script>
+    if (cnt.size) { const b = [...cnt.entries()].sort((a, c) => c[1] - a[1])[0]; r.price = b[1] > 1 ? b[0] : first; }
+  }
+  // km: beschriftet, sonst erste "… km" ohne Reichweite/Umkreis
+  m = text.match(/(?:Kilometerstand|km-Stand|Laufleistung|Kilometer)\s*:?\s*(\d{1,3}(?:[.\s']\d{3})+|\d{1,6})/i);
+  if (m) { const v = toInt(m[1]); if (v >= 0 && v <= 1500000) r.km = v; }
+  if (r.km === null) {
+    const re = /(\d{1,3}(?:[.\s']\d{3})+|\d{3,6})\s*km\b(?!\s*\/\s*h)/gi; let mm;
+    while ((mm = re.exec(text))) {
+      if (/reichweite|entfernung|umkreis|co2|verbrauch|\/100/.test(text.slice(Math.max(0, mm.index - 25), mm.index).toLowerCase())) continue;
+      const v = toInt(mm[1]); if (v >= 100 && v <= 1500000) { r.km = v; break; }
+    }
+  }
+  // EZ: beschriftet, sonst MM/JJJJ, das NICHT Teil eines vollen Datums ist (Druckdatum im Browser-Kopf!)
+  m = text.match(/(?:Erstzulassung|Erstzul\.?|EZ)\s*:?\s*(\d{1,2}[.\/]\d{1,2}[.\/]\d{4}|\d{1,2}[.\/-]\d{4}|\d{4}-\d{2})/i);
+  if (m && parseEz(m[1])) r.ez = parseEz(m[1]).iso;
+  if (!r.ez) { const mm = text.match(/(?<![\d.\/])(0?[1-9]|1[0-2])[\/.](19[89]\d|20[0-4]\d)(?![\d.\/])/); if (mm) r.ez = parseEz(`${mm[1]}/${mm[2]}`)?.iso || null; }
+  return r;
+}
+async function handlePdfs(fileList) {
+  const files = Array.from(fileList);   // Kopie: das Input-Feld wird direkt danach geleert (FileList ist "live")
+  for (const f of files) {
+    if (f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) continue;
+    const bytes = await f.arrayBuffer();
+    let ex = { source: null, price: null, km: null, ez: null, url: null };
+    try { ex = extractListing(await pdfText(bytes)); } catch (e) { console.warn('PDF-Text nicht lesbar:', f.name, e); }
+    const src = ex.source || detectPlatform(f.name);
+    addListing({ source: src || 'willhaben.at', title: f.name.replace(/\.pdf$/i, '').slice(0, 60), url: ex.url || '',
+      ez: ex.ez || '', km: ex.km, price: ex.price,
+      auto: { source: !!src, ez: !!ex.ez, km: ex.km !== null, price: ex.price !== null }, pdfBytes: bytes, pdfName: f.name });
+  }
+}
+async function importDat(input) {
+  const f = input.files && input.files[0]; input.value = ''; if (!f) return;
+  let t = '';
+  try { t = await pdfText(await f.arrayBuffer(), 6); } catch (e) { alert('PDF konnte nicht gelesen werden.'); return; }
+  const g = re => ((t.match(re) || [])[1] || '').trim();
+  const her = g(/Hersteller\s+([A-Za-zÄÖÜäöü0-9\-]+)/i), mod = g(/Modell\s+([^\n(]{2,60}?)(?:\s{2,}|\(|\n)/i);
+  const ez = g(/Erstzulassung\s*:?\s*([\d.\/]{6,10})/i), km = g(/(?:Laufleistung|Kilometerstand|Tachostand)\s*:?\s*([\d.\s]+)\s*km/i);
+  const kw = g(/(\d{2,4})\s*kW/i), fuel = g(/(Diesel|Benzin|Elektro|Plug-in-Hybrid|Hybrid|Erdgas|Autogas)/i), gear = g(/(Automatik|Schaltgetriebe|Doppelkupplung)/i);
+  const vin = g(/\b([A-HJ-NPR-Z0-9]{17})\b/), np = g(/Listenneupreis[^\d]{0,40}([\d.]+),\d{2}/i);
+  const fill = (id, v) => { if (v) { $(id).value = v; $(id).classList.add('wb-auto'); return 1; } return 0; };
+  let n = 0;
+  n += fill('wb-model', [her, mod].filter(Boolean).join(' ').replace(/\s+/g, ' '));
+  n += fill('wb-power', [kw && kw + ' kW', fuel, gear].filter(Boolean).join(' / '));
+  if (parseEz(ez)) n += fill('wb-ez', ezDE(parseEz(ez).iso));
+  if (km) n += fill('wb-km', toInt(km));
+  n += fill('wb-vin', vin);
+  if (np) n += fill('wb-newprice', toInt(np));
+  if (vin || np || kw) $('wb-more').open = true;
+  recalc();
+  alert(n ? `${n} Feld(er) übernommen (gelb) – bitte prüfen.` : 'Keine Fahrzeugdaten erkannt – bitte manuell eingeben.');
+}
+
+/* ======================= APS-PDF & Vorschäden ======================= */
+function renderAps() {
+  $('wb-aps-slot').innerHTML = apsPdf
+    ? `<span class="wb-beleg has" title="${esc(apsPdf.name)}">✓ ${esc(apsPdf.name)}</span><button class="wb-del" onclick="WBW._apsRemove()">✕</button>`
+    : `<label class="wb-beleg">+ APS-PDF wählen<input type="file" accept="application/pdf" class="hidden" onchange="WBW._apsAttach(this)"></label>`;
+}
+async function attachAps(input) { const f = input.files && input.files[0]; if (!f) return; apsPdf = { name: f.name, bytes: await f.arrayBuffer() }; renderAps(); recalc(); }
+function addDamage(d = {}) { damages.push({ id: nextId++, desc: d.desc || '', amount: d.amount || 0 }); renderDamages(); recalc(); }
+function renderDamages() {
+  $('wb-dmg').innerHTML = damages.map(d => `<tr>
+    <td style="padding-left:0;"><input value="${esc(d.desc)}" placeholder="Bauteil / Art des Vorschadens" oninput="WBW._dmg(${d.id},'desc',this.value)"></td>
+    <td style="width:120px;"><input type="number" step="10" min="0" value="${d.amount}" title="Abzug in €" oninput="WBW._dmg(${d.id},'amount',this.value)"></td>
+    <td style="width:36px;"><button class="wb-del" onclick="WBW._dmgRemove(${d.id})">✕</button></td></tr>`).join('');
+}
+
+/* ======================= Anzeige ======================= */
+function recalc() {
+  const C = calculate();
+  listings.forEach(it => {
+    const row = $('wb-row-' + it.id); if (!row) return;
+    const r = it._r;
+    row.classList.toggle('wb-incomplete', !r.complete);
+    row.classList.toggle('wb-excluded', r.complete && !it.use);
+    const cA = $('wb-ca-' + it.id), cK = $('wb-ck-' + it.id), cT = $('wb-ct-' + it.id);
+    if (!r.complete) { cA.innerHTML = cK.innerHTML = '<span class="wb-muted">–</span>'; cT.innerHTML = `<span class="wb-badge wb-badge-warn">${C.subj ? 'Daten fehlen' : 'Bew.-Fzg. fehlt'}</span>`; return; }
+    cA.innerHTML = `<div class="wb-muted">Δ ${r.dM > 0 ? '+' : ''}${r.dM} Mon.${r.ageCapped ? ' · Deckel' : ''}</div><span class="${r.age >= 0 ? 'wb-pos' : 'wb-neg'}">${eurS(r.age)}</span>`;
+    cK.innerHTML = `<div class="wb-muted">Δ ${r.dKm > 0 ? '+' : ''}${numDE(r.dKm)} km${r.kmHint ? ' · &gt;100 %' : ''}</div><span class="${r.km >= 0 ? 'wb-pos' : 'wb-neg'}">${eurS(r.km)}</span>`;
+    cT.innerHTML = eur(r.adapted) + (r.outlier ? `<div><span class="wb-badge wb-badge-out">Ausreißer ${r.dev > 0 ? '+' : ''}${r.dev.toFixed(0)} %</span></div>` : (r.dev !== null ? `<div class="wb-muted">${r.dev > 0 ? '+' : ''}${r.dev.toFixed(0)} %</div>` : ''));
+  });
+  const excl = C.complete.length - C.n;
+  $('wb-r-raw').textContent = eur(C.rawAvg);
+  $('wb-r-raw-s').textContent = C.n ? `unkorrigiert · ${C.n} Fzg.` : 'unkorrigiert';
+  $('wb-r-mkt').textContent = eur(C.market);
+  $('wb-r-mkt-s').textContent = C.n ? `${C.n} einbezogen${excl ? ` · ${excl} ausgeschieden` : ''}` : 'keine vollständigen Fzg.';
+  $('wb-r-adj').textContent = eurS(-C.dmgSum + C.other);
+  $('wb-r-adj-s').textContent = `Vorschäden ${eurS(-C.dmgSum)} · Sonst. ${eurS(C.other)}`;
+  $('wb-r-wbw').textContent = $('wb-head-wbw').textContent = eur(C.rounded);
+  $('wb-r-wbw-s').textContent = (C.mode === 'weighted' ? `Markt ${100 - C.P.apsW} % / APS ${C.P.apsW} % · ` : C.mode === 'aps' ? 'nur APS-Wert · ' : '') + `exakt ${eur(C.exact)} · gerundet auf ${C.P.round} €`;
+  const cmp = $('wb-aps-cmp');
+  if (C.apsDev === null) { cmp.className = 'wb-status'; cmp.textContent = 'APS-Abgleich: kein APS-Wert eingetragen.'; }
+  else {
+    const big = Math.abs(C.apsDev) > 10;
+    cmp.className = 'wb-status' + (big ? ' warn' : '');
+    cmp.textContent = `APS-Abgleich: Marktmittelwert ${eur(C.market)} liegt ${C.apsDev > 0 ? '+' : ''}${numDE(C.apsDev, 1)} % ${C.apsDev >= 0 ? 'über' : 'unter'} dem APS-Wert ${eur(C.aps)}.` + (big ? ' Abweichung > 10 % – im Gutachten begründen.' : '');
+  }
+  $('wb-wr-wrap').style.opacity = C.P.apsW > 0 ? '1' : '.55';
+  renderQs(C);
+  if (!noteEdited) $('wb-note').value = buildNote(C);
+  $('wb-note-state').textContent = noteEdited ? 'manuell bearbeitet – wird nicht mehr automatisch überschrieben' : 'automatisch erzeugt – passt sich bei Änderungen an';
+  $('wb-note-regen').classList.toggle('hidden', !noteEdited);
+  return C;
+}
+
+/* ======================= Prüfliste ======================= */
+function qsChecks(C) {
+  const o = [], add = (l, t) => o.push({ l, t });
+  const apsCount = parseInt($('wb-aps-count').value, 10);
+  const withPdf = C.incl.filter(x => x.pdfBytes).length;
+  const incomplete = listings.filter(x => !x._r.complete).length;
+  add(val('wb-claim') ? 'ok' : 'err', 'Schadennummer');
+  add(/^[A-HJ-NPR-Z0-9]{17}$/.test(val('wb-vin').toUpperCase()) ? 'ok' : 'warn', 'FIN vollständig, 17 Zeichen (Kap. 3 Pkt. 11)');
+  add(C.subj ? 'ok' : 'err', 'EZ und km des Bewertungsfahrzeugs');
+  add(val('wb-date') ? 'ok' : 'err', 'Schadensdatum (Bewertungsstichtag)');
+  if (apsCount < 4) add(withPdf >= 1 ? 'ok' : 'err', `APS ${apsCount} Treffer (< 4): mind. 1 Börsenfahrzeug als PDF (Kap. 4 Pkt. 1)`);
+  else add(apsPdf || withPdf ? 'ok' : 'warn', 'Marktrecherche als PDF beigelegt (Kap. 4 Pkt. 1)');
+  if (C.n) add(withPdf === C.n ? 'ok' : 'warn', `Beleg-PDF für alle einbezogenen Fahrzeuge (${withPdf}/${C.n})`);
+  if (C.n && C.n < 3) add('warn', `Nur ${C.n} Vergleichsfahrzeug(e) einbezogen – Datenbasis begründen`);
+  if (incomplete) add('warn', `${incomplete} Zeile(n) unvollständig – fließen nicht ein`);
+  const outIn = C.incl.filter(x => x._r.outlier).length;
+  if (outIn) add('warn', `${outIn} Ausreißer im Mittelwert – ausscheiden oder begründen`);
+  if (listings.some(x => x.auto.price || x.auto.km || x.auto.ez)) add('warn', 'Automatisch gelesene Werte (gelb) bestätigen');
+  add(damages.length || $('wb-nodamage').checked ? 'ok' : 'err', 'Vorschäden erfasst oder „keine“ vermerkt (Kap. 3 Pkt. 27)');
+  if (damages.some(d => !d.desc.trim() || !(d.amount > 0))) add('warn', 'Vorschaden-Position ohne Text oder Betrag');
+  if (C.mode === 'weighted') add(val('wb-p-wreason') ? 'ok' : 'err', 'Gewichtung APS/Markt begründet');
+  if (C.other && !val('wb-other-reason')) add('err', 'Sonstige Korrektur ohne Begründung');
+  if (C.P.wpf !== 5) add('warn', `Wunschpreisabzug ${pct(C.P.wpf)} % (≠ 5 %) – im Text begründen`);
+  add(C.rounded !== null ? 'ok' : 'err', `WBW ermittelt, auf ${C.P.round} € gerundet` + (C.P.round === 10 ? ' (Kap. 3 Pkt. 29a)' : ' – Leitfaden verlangt 10 €'));
+  return o;
+}
+function renderQs(C) {
+  const ch = qsChecks(C), ico = { ok: '✓', warn: '!', err: '✕' };
+  $('wb-qs').innerHTML = ch.map(c => `<li class="${c.l}"><span class="i">${ico[c.l]}</span><span>${esc(c.t)}</span></li>`).join('');
+  const e = ch.filter(c => c.l === 'err').length, w = ch.filter(c => c.l === 'warn').length, s = $('wb-qs-sum');
+  s.className = 'wb-pill ' + (e ? 'err' : w ? 'warn' : 'ok');
+  s.textContent = e ? `${e} offen · ${w} Hinweis(e)` : w ? `${w} Hinweis(e)` : 'Bereit für Export';
+}
+
+/* ======================= Textbaustein ======================= */
+function buildNote(C) {
+  const apsCount = parseInt($('wb-aps-count').value, 10), P = C.P, parts = [];
+  if (apsCount < 4) parts.push(`Im AutoPreisSpiegel (APS) wurden zum Bewertungsstichtag ${dateDE(val('wb-date'))} lediglich ${apsCount} Vergleichsfahrzeug(e) gefunden. Gemäß Leitfaden für die Gutachtenerstellung I/2026 (Kap. 4 Pkt. 1) wurde daher ergänzend eine Marktrecherche auf österreichischen Gebrauchtwagenbörsen durchgeführt.`);
+  else parts.push('Ergänzend zur Bewertung im AutoPreisSpiegel (APS) wurde zur Plausibilisierung eine Marktrecherche auf österreichischen Gebrauchtwagenbörsen durchgeführt.');
+  if (C.n) {
+    const excl = C.complete.length - C.n;
+    parts.push(`Herangezogen wurden ${C.n} Vergleichsfahrzeug(e) (${[...new Set(C.incl.map(x => x.source))].join(', ')})` +
+      (excl ? `; ${excl} weitere(s) Inserat(e) wurde(n) dokumentiert, jedoch als nicht vergleichbar bzw. Ausreißer nicht in den Mittelwert einbezogen.` : '.'));
+    if (val('wb-criteria')) parts.push(`Suchkriterien: ${val('wb-criteria').replace(/\.$/, '')}.`);
+    const s = [];
+    if (C.incl.some(x => x.applyWpf)) s.push(`um einen Wunschpreisabzug von ${pct(P.wpf)} % bereinigt`);
+    if (C.incl.some(x => x.seller === 'privat')) s.push(`Privatinserate um ${pct(P.priv)} % auf Händlerniveau (inkl. Gewährleistung) angehoben`);
+    s.push(`hinsichtlich Erstzulassung (${pct(P.month)} % je Monat, max. ±${pct(P.ageCap)} %) und Laufleistung (${pct(P.kmMore)} % bzw. ${pct(P.kmMoreHi)} % je 1.000 km Mehrlaufleistung, ${pct(P.kmLess)} % je 1.000 km Minderlaufleistung des Bewertungsfahrzeugs) auf das Bewertungsfahrzeug (${val('wb-model') || '–'}, EZ ${C.subj ? ezDE(C.subj.ez.iso) : '–'}, ${C.subj ? numDE(C.subj.km) : '–'} km) normiert`);
+    const last = s.pop();
+    parts.push(`Die Inseratspreise wurden ${s.length ? s.join(', ') + ' sowie ' : ''}${last}${C.incl.some(x => x.equipDiff) ? '; Ausstattungsunterschiede wurden je Fahrzeug berücksichtigt' : ''}. Der Marktmittelwert beträgt ${eur(C.market)}.`);
+  }
+  if (C.mode === 'weighted') parts.push(`Dieser wurde mit dem APS-Wert (${eur(C.aps)}) im Verhältnis Markt ${100 - P.apsW} % / APS ${P.apsW} % zusammengeführt. Begründung: ${val('wb-p-wreason') || '[ERGÄNZEN]'}.`);
+  else if (C.apsDev !== null && Math.abs(C.apsDev) > 10) parts.push(`Der Marktmittelwert weicht um ${numDE(C.apsDev, 1)} % vom APS-Wert (${eur(C.aps)}) ab. Begründung: [ERGÄNZEN].`);
+  if (damages.length) parts.push(`Bewertungsrelevante Vorschäden wurden als objektiver Minderwert mit insgesamt ${eur(C.dmgSum)} in Abzug gebracht.`);
+  else if ($('wb-nodamage').checked) parts.push('Bewertungsrelevante Vorschäden waren nicht erkennbar.');
+  if (C.other) parts.push(`Sonstige Korrektur ${eurS(C.other)}: ${val('wb-other-reason') || '[ERGÄNZEN]'}.`);
+  if (val('wb-resdate') && val('wb-date') && val('wb-resdate') !== val('wb-date')) parts.push(`Die Marktrecherche wurde am ${dateDE(val('wb-resdate'))} durchgeführt; die Marktlage war mit jener zum Bewertungsstichtag vergleichbar.`);
+  parts.push(`Der Wiederbeschaffungswert (Händlerverkaufswert inkl. Gewährleistung) zum Bewertungsstichtag beträgt auf ${P.round} € gerundet ${eur(C.rounded)}.`);
+  return parts.join(' ').replace(/−/g, '-');
+}
+
+/* ======================= PDF-Export ======================= */
+async function exportPdf(withAttachments) {
+  if (!window.jspdf || !window.PDFLib) { alert('PDF-Bibliotheken nicht geladen – Internetverbindung prüfen.'); return; }
+  const C = recalc();
+  const errs = qsChecks(C).filter(c => c.l === 'err');
+  if (errs.length && !confirm('Prüfliste offen:\n• ' + errs.map(e => e.t).join('\n• ') + '\n\nTrotzdem exportieren?')) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const W = 297, H = 210, L = 12, R = 12, CW = W - L - R, T = pdfSafe, NAVY = [0, 55, 129], RED = [226, 0, 26];
+  const claim = val('wb-claim') || '-';
+
+  let bNr = 0;
+  const apsB = withAttachments && apsPdf ? ++bNr : null;
+  listings.forEach(it => { it._b = withAttachments && it.pdfBytes ? ++bNr : null; });
+
+  // Kopf
+  doc.setFillColor(0, 34, 79); doc.rect(0, 0, W, 19, 'F'); doc.setFillColor(...RED); doc.rect(0, 19, W, 1.2, 'F');
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text('Marktrecherche - Wiederbeschaffungswert (Totalschaden)', L, 8.5);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.8);
+  doc.text(T(`Beilage zum Gutachten gem. Leitfaden für die Gutachtenerstellung I/2026, Kap. 4 Pkt. 1   |   Schaden-Nr. ${claim}   |   Kennzeichen ${val('wb-plate') || '-'}`), L, 14.8);
+
+  // Bewertungsfahrzeug
+  let y = 25;
+  doc.setTextColor(...NAVY); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text('1. Bewertungsfahrzeug', L, y);
+  y += 2; doc.setDrawColor(220, 225, 232); doc.setFillColor(246, 248, 251); doc.roundedRect(L, y, CW, 20, 2, 2, 'FD');
+  doc.setTextColor(22, 33, 46); doc.setFontSize(8.6);
+  const kv = (x, yy, k, v, mw) => { doc.setFont('helvetica', 'bold'); doc.text(T(k), x, yy); const w = doc.getTextWidth(T(k)) + 1.5; doc.setFont('helvetica', 'normal'); doc.text(T(v), x + w, yy, { maxWidth: mw - w }); };
+  const c1 = L + 3, c2 = L + 110, c3 = L + 190;
+  kv(c1, y + 6, 'Fahrzeug:', val('wb-model') || '-', 105);
+  kv(c1, y + 11.5, 'Leistung/Antrieb:', val('wb-power') || '-', 105);
+  kv(c1, y + 17, 'FIN:', val('wb-vin').toUpperCase() || '-', 105);
+  kv(c2, y + 6, 'Erstzulassung:', C.subj ? ezDE(C.subj.ez.iso) : '-', 78);
+  kv(c2, y + 11.5, 'Kilometerstand:', C.subj ? kmF(C.subj.km) : '-', 78);
+  kv(c2, y + 17, 'Listenneupreis:', num('wb-newprice') ? eur(num('wb-newprice')) : '-', 78);
+  kv(c3, y + 6, 'Bewertungsstichtag:', dateDE(val('wb-date')), 82);
+  kv(c3, y + 11.5, 'Recherchedatum:', dateDE(val('wb-resdate')), 82);
+  const ac = $('wb-aps-count').value === '4' ? '4 oder mehr' : $('wb-aps-count').value;
+  kv(c3, y + 17, 'APS:', `${ac} Treffer${C.aps > 0 ? ', ' + eur(C.aps) : ''}${apsB ? ' (Beilage ' + apsB + ')' : ''}`, 82);
+  y += 20;
+  if (val('wb-criteria')) {
+    doc.setFontSize(8); doc.setTextColor(89, 102, 122);
+    const ls = doc.splitTextToSize(T('Suchkriterien: ' + val('wb-criteria')), CW); doc.text(ls, L, y + 4.2); y += 1.5 + ls.length * 3.6;
+  }
+
+  // Vergleichsfahrzeuge
+  y += 6; doc.setTextColor(...NAVY); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text('2. Vergleichsfahrzeuge', L, y);
+  const P = C.P;
+  const head = [['#', 'Quelle / Anbieter', 'Fahrzeug / Notiz', 'EZ', 'km', 'Inserat', `WP -${pct(P.wpf)} %`, `Privat +${pct(P.priv)} %`,
+    'Alter (D Mon.)', 'km (D km)', 'Ausst.', 'Angepasst', 'Status / Beleg']];
+  const body = listings.map((it, i) => {
+    const r = it._r, ok = r.complete;
+    const st = !ok ? 'unvollständig, nicht einbezogen' : it.use ? (r.outlier ? 'einbezogen (Ausreißerverdacht)' : 'einbezogen') : 'nicht einbezogen';
+    return [i + 1, `${it.source}\n${it.seller === 'privat' ? 'Privat' : 'Händler'}`, it.title + (it.url ? '\n' + it.url : ''),
+      ezDE(it.ez) || '-', it.km !== null ? numDE(it.km) : '-', it.price ? eur(it.price) : '-',
+      ok ? eurS(r.wpf) : '-', ok && r.priv ? eurS(r.priv) : '-',
+      ok ? `${r.dM > 0 ? '+' : ''}${r.dM}\n${eurS(r.age)}${r.ageCapped ? ' (Deckel)' : ''}` : '-',
+      ok ? `${r.dKm > 0 ? '+' : ''}${numDE(r.dKm)}\n${eurS(r.km)}` : '-',
+      ok ? eurS(r.equip) : '-', ok ? eur(r.adapted) : '-',
+      st + (it._b ? `\nBeilage ${it._b}` : it.pdfBytes ? '' : '\nkein PDF')].map(T);
+  });
+  doc.autoTable({
+    startY: y + 2, margin: { left: L, right: R, bottom: 14 }, head, body, theme: 'grid',
+    styles: { fontSize: 7.5, cellPadding: 1.6, overflow: 'linebreak', valign: 'middle', lineColor: [220, 225, 232], lineWidth: 0.2, textColor: [22, 33, 46] },
+    headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 7.3 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: { 0: { cellWidth: 7, halign: 'center' }, 1: { cellWidth: 25 }, 2: { cellWidth: 60 }, 3: { cellWidth: 15 }, 4: { halign: 'right', cellWidth: 16 },
+      5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' }, 10: { halign: 'right' },
+      11: { halign: 'right', fontStyle: 'bold' }, 12: { cellWidth: 31 } },
+    didParseCell: d => { if (d.section !== 'body') return; const it = listings[d.row.index]; if (it && (!it._r.complete || !it.use)) { d.cell.styles.textColor = [192, 28, 28]; d.cell.styles.fillColor = [253, 240, 240]; } }
+  });
+  y = doc.lastAutoTable.finalY + 3.5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(89, 102, 122);
+  doc.text(T(`D = Bewertungsfahrzeug - Vergleichsfahrzeug. Alter ${pct(P.month)} % je Monat (max. ±${pct(P.ageCap)} %); km ${pct(P.kmMore)} % (> 100 % Abw.: ${pct(P.kmMoreHi)} %) je 1.000 km Mehrlaufleistung, ${pct(P.kmLess)} % je 1.000 km Minderlaufleistung des Bewertungsfahrzeugs. Ausst. = Ausstattungsdifferenz.`), L, y);
+  y += 3;
+
+  const ensure = h => { if (y + h > H - 14) { doc.addPage(); y = 14; } };
+  // Vorschäden
+  const dRows = damages.map(d => [d.desc || '-', eurS(-(d.amount || 0))]);
+  if (!damages.length && $('wb-nodamage').checked) dRows.push(['Keine bewertungsrelevanten Vorschäden erkennbar', '-']);
+  if (C.other) dRows.push(['Sonstige Korrektur: ' + (val('wb-other-reason') || '-'), eurS(C.other)]);
+  if (dRows.length) {
+    ensure(14 + dRows.length * 6);
+    doc.autoTable({ startY: y + 1, margin: { left: L, right: R, bottom: 14 }, tableWidth: 150, theme: 'grid',
+      head: [['Vorschäden / objektiver Minderwert / Korrekturen', 'Betrag']], body: dRows.map(r => r.map(T)),
+      styles: { fontSize: 7.8, cellPadding: 1.5, lineColor: [220, 225, 232], lineWidth: 0.2 }, headStyles: { fillColor: [89, 102, 122], textColor: 255 },
+      columnStyles: { 1: { halign: 'right', cellWidth: 28 } } });
+    y = doc.lastAutoTable.finalY + 3;
+  }
+
+  // Ergebnis
+  ensure(32);
+  doc.setTextColor(...NAVY); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text('3. Ergebnis', L, y + 4); y += 6;
+  doc.setDrawColor(220, 225, 232); doc.setFillColor(246, 248, 251); doc.roundedRect(L, y, CW, 22, 2, 2, 'FD');
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(22, 33, 46);
+  const r1 = [`Ø Inseratspreis: ${eur(C.rawAvg)}`, `Marktmittelwert (${C.n} Fzg.): ${eur(C.market)}`,
+    C.mode === 'weighted' ? `Markt ${100 - P.apsW} % / APS ${P.apsW} %: ${eur(C.base)}` : (C.aps > 0 ? `APS-Wert: ${eur(C.aps)}${C.apsDev !== null ? ` (Markt ${C.apsDev > 0 ? '+' : ''}${numDE(C.apsDev, 1)} %)` : ''}` : 'APS-Wert: -')];
+  const r2 = [`Vorschäden: ${eurS(-C.dmgSum)}`, `Sonstige Korrektur: ${eurS(C.other)}`, `WBW exakt: ${eur(C.exact)}`];
+  r1.forEach((t, i) => doc.text(T(t), L + 4 + i * 64, y + 8.5));
+  r2.forEach((t, i) => doc.text(T(t), L + 4 + i * 64, y + 15.5));
+  doc.setFillColor(...NAVY); doc.roundedRect(L + CW - 72, y + 2, 69, 18, 2, 2, 'F');
+  doc.setTextColor(255); doc.setFontSize(7.4); doc.text(T(`Wiederbeschaffungswert, gerundet auf ${P.round} €`), L + CW - 69, y + 7.2);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text(T(eur(C.rounded)), L + CW - 69, y + 16.3);
+  y += 27;
+
+  // Begründung
+  ensure(10); doc.setTextColor(...NAVY); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text('4. Gutachterliche Begründung', L, y + 2); y += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(51, 65, 85);
+  doc.splitTextToSize(T(val('wb-note')), CW).forEach(line => { ensure(4); doc.text(line, L, y + 2); y += 4; });
+
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(89, 102, 122);
+    doc.text(T(`Erstellt am ${dateDE(todayIso())}${val('wb-sv') ? '  |  ' + val('wb-sv') : ''}  |  Schaden-Nr. ${claim}`), L, H - 6);
+    doc.text(T(`Deckblatt Seite ${p}/${pages}${bNr ? '  |  ' + bNr + ' Beilage(n)' : ''}`), W - R, H - 6, { align: 'right' });
+  }
+
+  const coverBytes = doc.output('arraybuffer');
+  const base = `Marktrecherche_WBW_${(val('wb-claim') || 'Gutachten').replace(/[^\w.-]+/g, '_')}`;
+  if (!withAttachments || !bNr) {
+    if (withAttachments) alert('Keine Beleg-PDFs vorhanden – es wird nur das Deckblatt erzeugt.');
+    download(new Blob([coverBytes], { type: 'application/pdf' }), base + '.pdf'); return;
+  }
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const out = await PDFDocument.create();
+  const font = await out.embedFont(StandardFonts.HelveticaBold);
+  const cover = await PDFDocument.load(coverBytes);
+  (await out.copyPages(cover, cover.getPageIndices())).forEach(p => out.addPage(p));
+  const failed = [];
+  const append = async (bytes, label, name) => {
+    try {
+      const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      (await out.copyPages(src, src.getPageIndices())).forEach((pg, i) => { stamp(pg, i === 0 ? label : `${label.split('|')[0].trim()} - Seite ${i + 1}`, font, rgb); out.addPage(pg); });
+    } catch (e) { console.error(e); failed.push(name); }
+  };
+  if (apsB) await append(apsPdf.bytes, `Beilage ${apsB} | APS-Auszug | Schaden-Nr. ${claim}`, apsPdf.name);
+  for (let i = 0; i < listings.length; i++) {
+    const it = listings[i], r = it._r; if (!it._b) continue;
+    const st = !r.complete ? ' | UNVOLLSTÄNDIG - nicht einbezogen' : !it.use ? ' | NICHT EINBEZOGEN' : '';
+    await append(it.pdfBytes, `Beilage ${it._b} | Vergleichsfahrzeug #${i + 1} (${it.source}) | EZ ${ezDE(it.ez) || '-'} | ${it.km !== null ? kmF(it.km) : '-'} | Inserat ${eur(it.price)}` + (r.complete ? ` -> angepasst ${eur(r.adapted)}` : '') + st, it.pdfName);
+  }
+  download(new Blob([await out.save()], { type: 'application/pdf' }), base + '_Sammel.pdf');
+  if (failed.length) alert('Nicht angehängt (verschlüsselt/beschädigt) – bitte neu als PDF drucken:\n• ' + failed.join('\n• '));
+}
+// Kopfstreifen ÜBER der Originalseite (Seite wird erweitert) – URL/Druckdatum des Inserats bleiben sichtbar
+function stamp(page, text, font, rgb) {
+  const BAND = 18, mb = page.getMediaBox(), cb = page.getCropBox(), rot = ((page.getRotation().angle % 360) + 360) % 360;
+  text = pdfSafe(text);
+  let y0;
+  if (rot === 0) {
+    const top = mb.y + mb.height;
+    page.setMediaBox(mb.x, mb.y, mb.width, mb.height + BAND);
+    page.setCropBox(cb.x, cb.y, cb.width, top + BAND - cb.y);
+    y0 = top;
+  } else y0 = cb.y + cb.height - BAND;
+  page.drawRectangle({ x: cb.x, y: y0, width: cb.width, height: BAND, color: rgb(0, 0.133, 0.31) });
+  page.drawRectangle({ x: cb.x, y: y0, width: cb.width, height: 1.2, color: rgb(0.886, 0, 0.102) });
+  let size = 8.5; while (size > 5 && font.widthOfTextAtSize(text, size) > cb.width - 16) size -= 0.25;
+  page.drawText(text, { x: cb.x + 8, y: y0 + (BAND - size) / 2 + 1.2, size, font, color: rgb(1, 1, 1) });
+}
+function download(blob, name) {
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+/* ======================= Fall speichern / laden ======================= */
+function b64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function unb64(s) { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u.buffer; }
+function saveCase() {
+  const d = { app: 'wbw-marktrecherche', version: 3, fields: {}, params: {}, noDamage: $('wb-nodamage').checked, note: val('wb-note'), noteEdited,
+    damages: damages.map(({ desc, amount }) => ({ desc, amount })), apsPdf: apsPdf ? { name: apsPdf.name, b64: b64(apsPdf.bytes) } : null,
+    listings: listings.map(it => ({ source: it.source, seller: it.seller, title: it.title, url: it.url, ez: it.ez, km: it.km, price: it.price, applyWpf: it.applyWpf,
+      equipDiff: it.equipDiff, use: it.use, auto: it.auto, pdfName: it.pdfName, pdfB64: it.pdfBytes ? b64(it.pdfBytes) : null })) };
+  CASE_FIELDS.forEach(f => d.fields[f] = $(f).value);
+  PARAM_FIELDS.forEach(f => d.params[f] = $(f).value);
+  download(new Blob([JSON.stringify(d)], { type: 'application/json' }), `WBW_Fall_${(val('wb-claim') || 'ohne_Nr').replace(/[^\w.-]+/g, '_')}.json`);
+}
+async function loadCase(input) {
+  const f = input.files && input.files[0]; input.value = ''; if (!f) return;
+  let d; try { d = JSON.parse(await f.text()); } catch (e) { alert('Keine gültige Fall-Datei.'); return; }
+  if (d.app !== 'wbw-marktrecherche') { alert('Keine Fall-Datei dieses Tools.'); return; }
+  resetForm();
+  Object.entries(d.fields || {}).forEach(([k, v]) => { if ($(k)) $(k).value = v; });
+  Object.entries(d.params || {}).forEach(([k, v]) => { if ($(k)) $(k).value = v; });
+  $('wb-nodamage').checked = !!d.noDamage;
+  (d.damages || []).forEach(x => damages.push({ id: nextId++, desc: x.desc, amount: x.amount }));
+  apsPdf = d.apsPdf ? { name: d.apsPdf.name, bytes: unb64(d.apsPdf.b64) } : null;
+  (d.listings || []).forEach(x => { const { pdfB64, ...rest } = x; listings.push({ ...rest, id: nextId++, auto: x.auto || {}, pdfBytes: pdfB64 ? unb64(pdfB64) : null }); });
+  noteEdited = !!d.noteEdited; if (noteEdited) $('wb-note').value = d.note || '';
+  renderTable(); renderDamages(); renderAps(); recalc();
+}
+
+/* ======================= Einstellungen ======================= */
+function saveSettings(explicit) {
+  try {
+    const s = JSON.parse(localStorage.getItem('wbw-settings') || '{}');
+    s.sv = val('wb-sv');
+    if (explicit) { s.params = {}; Object.keys(PARAM_DEFAULTS).forEach(f => s.params[f] = $(f).value); }
+    localStorage.setItem('wbw-settings', JSON.stringify(s));
+    if (explicit) alert('Parameter gemerkt (nur in diesem Browser).');
+  } catch (e) { if (explicit) alert('Speichern im Browser nicht möglich.'); }
+}
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('wbw-settings') || '{}');
+    if (s.sv) $('wb-sv').value = s.sv;
+    if (s.params) Object.entries(s.params).forEach(([k, v]) => { if ($(k)) $(k).value = v; });
+    if (s.theme) document.documentElement.setAttribute('data-theme', s.theme);
+  } catch (e) { /* Browser-Speicher nicht verfügbar */ }
+}
+function resetParams() { Object.entries(PARAM_DEFAULTS).forEach(([k, v]) => $(k).value = v); recalc(); }
+function toggleTheme() {
+  const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  try { const s = JSON.parse(localStorage.getItem('wbw-settings') || '{}'); s.theme = t; localStorage.setItem('wbw-settings', JSON.stringify(s)); } catch (e) { /* egal */ }
+}
+
+/* ======================= Fall-Steuerung ======================= */
+function resetForm() {
+  CASE_FIELDS.filter(f => f !== 'wb-sv').forEach(f => { $(f).value = ''; $(f).classList.remove('wb-auto', 'wb-invalid'); });
+  $('wb-aps-count').value = '0'; $('wb-other').value = 0; $('wb-resdate').value = todayIso();
+  $('wb-p-apsw').value = 0; $('wb-p-wreason').value = ''; $('wb-nodamage').checked = false;
+  listings = []; damages = []; apsPdf = null; noteEdited = false;
+  renderTable(); renderDamages(); renderAps();
+}
+const dirty = () => listings.length || val('wb-claim');
+function newCase() { if (dirty() && !confirm('Aktuellen Fall verwerfen? Nicht gespeicherte Daten gehen verloren.')) return; resetForm(); recalc(); }
+function loadDemo() {
+  if (dirty() && !confirm('Aktuellen Fall durch Demo-Daten ersetzen?')) return;
+  resetForm();
+  $('wb-claim').value = 'DEMO-2026-884120'; $('wb-plate').value = 'W-48291K'; $('wb-vin').value = 'WBA31DZ040FK91823';
+  $('wb-model').value = 'BMW 320d Touring xDrive Aut. (G21)'; $('wb-power').value = '140 kW / Diesel / Automatik';
+  $('wb-ez').value = '06/2021'; $('wb-km').value = 88500; $('wb-date').value = todayIso(); $('wb-aps-count').value = '2';
+  $('wb-criteria').value = 'BMW 320d Touring xDrive, EZ 2020–2022, 60.000–120.000 km, Österreich'; $('wb-nodamage').checked = true;
+  addListing({ source: 'willhaben.at', title: 'BMW 320d xDrive Touring M-Paket (Händler Wien)', ez: '2021-02', km: 98200, price: 26490, equipDiff: -400 });
+  addListing({ source: 'AutoScout24.at', title: 'BMW 320d Touring Aut. (NÖ)', ez: '2021-09', km: 76000, price: 27800, equipDiff: 250 });
+  addListing({ source: 'gebrauchtwagen.at', seller: 'privat', title: 'BMW 320d xDrive Kombi 1. Besitz (OÖ)', ez: '2020-11', km: 104500, price: 23200 });
+}
+function copyNote() {
+  const t = $('wb-note').value;
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).catch(() => { $('wb-note').select(); document.execCommand('copy'); });
+}
+
+/* ======================= Init ======================= */
+const app = $('wbw-app');
+app.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'wb-note') { noteEdited = true; $('wb-note-state').textContent = 'manuell bearbeitet – wird nicht mehr automatisch überschrieben'; $('wb-note-regen').classList.remove('hidden'); return; }
+  if (t.closest('#wb-body') || t.closest('#wb-dmg') || t.type === 'file') return;
+  t.classList.remove('wb-auto');
+  if (t.id !== 'wb-ez') recalc();
+});
+app.addEventListener('change', e => { const t = e.target; if (t.closest('#wb-body') || t.closest('#wb-dmg') || t.type === 'file') return; recalc(); });
+const dz = $('wb-drop');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); if (e.dataTransfer.files.length) handlePdfs(e.dataTransfer.files); });
+
+window.WBW = {
+  newCase, saveCase, loadCase, loadDemo, importDat, normEz, addListing, clearListings, handlePdfs, addDamage, exportPdf, copyNote,
+  resetParams, saveSettings, toggleTheme, regenNote: () => { noteEdited = false; recalc(); },
+  _set: setField, _remove: removeListing, _attach: attachPdf, _apsAttach: attachAps, _apsRemove: () => { apsPdf = null; renderAps(); recalc(); },
+  _dmg: (id, f, v) => { const d = damages.find(x => x.id === id); if (!d) return; d[f] = f === 'amount' ? Math.abs(parseFloat(v) || 0) : v; recalc(); },
+  _dmgRemove: id => { damages = damages.filter(x => x.id !== id); renderDamages(); recalc(); },
+  // Test-/Integrationszugriff
+  _calcListing: calcListing, _extractListing: extractListing, _calculate: calculate, _listings: () => listings
+};
+
+$('wb-resdate').value = todayIso();
+loadSettings();
+renderTable(); renderDamages(); renderAps(); recalc();
+})();
+</script>
 </body>
 </html>
