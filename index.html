@@ -132,6 +132,11 @@
   #wbw-app .wb-pill.warn { background: color-mix(in oklch, var(--rsg-warning) 15%, transparent); color: var(--rsg-warning); }
   #wbw-app .wb-pill.err { background: color-mix(in oklch, var(--rsg-danger) 13%, transparent); color: var(--rsg-danger); }
   #wbw-app details.wb-more > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--rsg-navy); margin-top: 12px; }
+  #wbw-app .wb-rund { display: flex; height: 38px; border: 1px solid var(--rsg-border); border-radius: var(--rsg-radius-sm); overflow: hidden; }
+  #wbw-app .wb-rund button { flex: 1; border: none; background: var(--rsg-surface); color: var(--rsg-text-muted); font-family: inherit; font-size: 13.5px; cursor: pointer; }
+  #wbw-app .wb-rund button + button { border-left: 1px solid var(--rsg-border); }
+  #wbw-app .wb-rund button.active { background: var(--rsg-navy); color: #fff; font-weight: 600; }
+  :root[data-theme="dark"] #wbw-app .wb-rund button.active { color: #12233d; }
   #wbw-app .wb-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   #wbw-app .hidden { display: none !important; }
   @media (max-width: 980px) { #wbw-app .wb-grid2 { grid-template-columns: 1fr; } }
@@ -216,7 +221,8 @@
       <div class="wb-info-grid">
         <div class="wb-item"><label>Wunschpreisabzug %</label><input id="wb-p-wpf" type="number" step="0.5" value="5"></div>
         <div class="wb-item"><label>Rundung WBW</label>
-          <select id="wb-p-round"><option value="10">auf 10 € (Leitfaden Kap. 3 Pkt. 29a)</option><option value="100">auf 100 €</option></select></div>
+          <div class="wb-rund" id="wb-rund"><button type="button" data-r="10">auf 10 €</button><button type="button" data-r="100">auf 100 €</button></div>
+          <input type="hidden" id="wb-p-round" value="10"></div>
         <div class="wb-item"><label>Gewichtung APS-Wert %</label><input id="wb-p-apsw" type="number" min="0" max="100" step="5" value="0"></div>
         <div class="wb-item wb-span2" id="wb-wr-wrap"><label>Begründung Gewichtung (Pflicht bei &gt; 0 %)</label><input id="wb-p-wreason" placeholder="z. B. liquider Markt, APS-Datenbasis tragfähig"></div>
       </div>
@@ -627,6 +633,7 @@ function recalc() {
     cmp.className = 'wb-status' + (big ? ' warn' : '');
     cmp.textContent = `APS-Abgleich: Marktmittelwert ${eur(C.market)} liegt ${C.apsDev > 0 ? '+' : ''}${numDE(C.apsDev, 1)} % ${C.apsDev >= 0 ? 'über' : 'unter'} dem APS-Wert ${eur(C.aps)}.` + (big ? ' Abweichung > 10 % – im Gutachten begründen.' : '');
   }
+  document.querySelectorAll('#wb-rund button').forEach(b => b.classList.toggle('active', +b.dataset.r === C.P.round));
   $('wb-wr-wrap').style.opacity = C.P.apsW > 0 ? '1' : '.55';
   renderQs(C);
   if (!noteEdited) $('wb-note').value = buildNote(C);
@@ -951,6 +958,7 @@ app.addEventListener('input', e => {
   if (t.id !== 'wb-ez') recalc();
 });
 app.addEventListener('change', e => { const t = e.target; if (t.closest('#wb-body') || t.closest('#wb-dmg') || t.type === 'file') return; recalc(); });
+document.querySelectorAll('#wb-rund button').forEach(b => b.addEventListener('click', () => { $('wb-p-round').value = b.dataset.r; recalc(); }));
 const dz = $('wb-drop');
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
